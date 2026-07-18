@@ -1,0 +1,792 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model cart {
+  id          Int       @id @default(autoincrement())
+  uuid        String    @db.VarChar(36)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  created_by  Int?
+  updated_at  DateTime? @db.Timestamp(0)
+  updated_by  Int?
+  deleted_at  DateTime? @db.Timestamp(6)
+  product_id  Int
+  user_id     Int
+  quantity    Int       @default(1)
+  total_price Float?    @db.Float
+  tax         Float?    @db.Float
+  taxAmount   Float?    @db.Float
+  unitPrice   Float?    @db.Float
+  products    products  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_dccd1ec2d6f5644a69adf163bc1")
+  users       users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f091e86a234693a49084b4c2c86")
+
+  @@index([product_id], map: "FK_dccd1ec2d6f5644a69adf163bc1")
+  @@index([user_id], map: "FK_f091e86a234693a49084b4c2c86")
+}
+
+model chat_messages {
+  id            Int            @id @default(autoincrement())
+  uuid          String         @db.VarChar(36)
+  created_at    DateTime       @default(now()) @db.Timestamp(6)
+  created_by    Int?
+  updated_at    DateTime?      @db.Timestamp(0)
+  updated_by    Int?
+  deleted_at    DateTime?      @db.Timestamp(6)
+  message       String         @db.LongText
+  level         Int?
+  user_id       Int?
+  ticket_id     Int?
+  ticket_system ticket_system? @relation(fields: [ticket_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_29377b88bed688c4d10b6777742")
+  users         users?         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5588b6cea298cedec7063c0d33e")
+
+  @@index([ticket_id], map: "FK_29377b88bed688c4d10b6777742")
+  @@index([user_id], map: "FK_5588b6cea298cedec7063c0d33e")
+}
+
+model master_banner_ads {
+  id         Int       @id @default(autoincrement())
+  uuid       String    @db.VarChar(36)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime? @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime? @db.Timestamp(6)
+  title      String    @db.VarChar(255)
+  link       String    @db.LongText
+  date_from  DateTime? @db.DateTime(0)
+  date_to    DateTime? @db.DateTime(0)
+  image_url  String    @db.VarChar(255)
+}
+
+model master_brands {
+  id         Int        @id @default(autoincrement())
+  uuid       String     @db.VarChar(36)
+  created_at DateTime   @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime?  @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime?  @db.Timestamp(6)
+  title      String     @db.VarChar(255)
+  color      String?    @db.VarChar(255)
+  image_url  String?    @db.VarChar(255)
+  products   products[]
+}
+
+model master_category {
+  id                  Int                   @id @default(autoincrement())
+  uuid                String                @db.VarChar(36)
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  created_by          Int?
+  updated_at          DateTime?             @db.Timestamp(0)
+  updated_by          Int?
+  deleted_at          DateTime?             @db.Timestamp(6)
+  title               String                @db.VarChar(255)
+  color               String?               @db.VarChar(255)
+  image_url           String?               @db.VarChar(255)
+  master_explore_ads  master_explore_ads[]
+  master_sub_category master_sub_category[]
+  products            products[]
+}
+
+model master_customer_category {
+  id                         Int                          @id @default(autoincrement())
+  uuid                       String                       @db.VarChar(36)
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  created_by                 Int?
+  updated_at                 DateTime?                    @db.Timestamp(0)
+  updated_by                 Int?
+  deleted_at                 DateTime?                    @db.Timestamp(6)
+  title                      String                       @db.VarChar(255)
+  color                      String?                      @db.VarChar(255)
+  image_url                  String?                      @db.VarChar(255)
+  user_mappings              user_mappings[]
+  user_products              user_products[]
+  user_products_multipricing user_products_multipricing[]
+  users                      users[]
+}
+
+model master_explore_ads {
+  id              Int              @id @default(autoincrement())
+  uuid            String           @db.VarChar(36)
+  created_at      DateTime         @default(now()) @db.Timestamp(6)
+  created_by      Int?
+  updated_at      DateTime?        @db.Timestamp(0)
+  updated_by      Int?
+  deleted_at      DateTime?        @db.Timestamp(6)
+  title           String           @db.VarChar(255)
+  sub_title       String           @db.VarChar(255)
+  banner_heading  String           @db.VarChar(255)
+  image_url       String           @db.VarChar(255)
+  category_id     Int?
+  master_category master_category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a4dda596590dba649b8e0f1ff65")
+
+  @@index([category_id], map: "FK_a4dda596590dba649b8e0f1ff65")
+}
+
+model master_manufacturers {
+  id         Int        @id @default(autoincrement())
+  uuid       String     @db.VarChar(36)
+  created_at DateTime   @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime?  @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime?  @db.Timestamp(6)
+  title      String     @db.VarChar(255)
+  color      String?    @db.VarChar(255)
+  image_url  String?    @db.VarChar(255)
+  products   products[]
+}
+
+model master_module {
+  id                      Int                       @id @default(autoincrement())
+  uuid                    String                    @db.VarChar(36)
+  created_at              DateTime                  @default(now()) @db.Timestamp(6)
+  created_by              Int?
+  updated_at              DateTime?                 @db.Timestamp(0)
+  updated_by              Int?
+  deleted_at              DateTime?                 @db.Timestamp(6)
+  title                   String                    @db.VarChar(255)
+  master_role_permissions master_role_permissions[]
+}
+
+model master_role_permissions {
+  id            Int            @id @default(autoincrement())
+  uuid          String         @db.VarChar(36)
+  created_at    DateTime       @default(now()) @db.Timestamp(6)
+  created_by    Int?
+  updated_at    DateTime?      @db.Timestamp(0)
+  updated_by    Int?
+  deleted_at    DateTime?      @db.Timestamp(6)
+  create        Int            @db.TinyInt
+  update        Int            @db.TinyInt
+  read          Int            @db.TinyInt
+  delete        Int            @db.TinyInt
+  role_id       Int?
+  module_id     Int?
+  master_roles  master_roles?  @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_30840793dcbefdce640dbf3bbdd")
+  master_module master_module? @relation(fields: [module_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6873c904e04e012730e4bcffa7e")
+
+  @@index([role_id], map: "FK_30840793dcbefdce640dbf3bbdd")
+  @@index([module_id], map: "FK_6873c904e04e012730e4bcffa7e")
+}
+
+model master_roles {
+  id                      Int                       @id @default(autoincrement())
+  uuid                    String                    @db.VarChar(36)
+  created_at              DateTime                  @default(now()) @db.Timestamp(6)
+  created_by              Int?
+  updated_at              DateTime?                 @db.Timestamp(0)
+  updated_by              Int?
+  deleted_at              DateTime?                 @db.Timestamp(6)
+  title                   String                    @db.VarChar(255)
+  master_role_permissions master_role_permissions[]
+  users                   users[]
+}
+
+model master_sub_category {
+  id              Int              @id @default(autoincrement())
+  uuid            String           @db.VarChar(36)
+  created_at      DateTime         @default(now()) @db.Timestamp(6)
+  created_by      Int?
+  updated_at      DateTime?        @db.Timestamp(0)
+  updated_by      Int?
+  deleted_at      DateTime?        @db.Timestamp(6)
+  title           String           @db.VarChar(255)
+  color           String?          @db.VarChar(255)
+  image_url       String?          @db.VarChar(255)
+  category_id     Int?
+  master_category master_category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_dbc4c14c91b3707390c75045fdb")
+  products        products[]
+
+  @@index([category_id], map: "FK_dbc4c14c91b3707390c75045fdb")
+}
+
+model master_ticket_category {
+  id            Int             @id @default(autoincrement())
+  uuid          String          @db.VarChar(36)
+  created_at    DateTime        @default(now()) @db.Timestamp(6)
+  created_by    Int?
+  updated_at    DateTime?       @db.Timestamp(0)
+  updated_by    Int?
+  deleted_at    DateTime?       @db.Timestamp(6)
+  title         String          @db.VarChar(255)
+  ticket_system ticket_system[]
+}
+
+model master_ticket_status {
+  id            Int             @id @default(autoincrement())
+  uuid          String          @db.VarChar(36)
+  created_at    DateTime        @default(now()) @db.Timestamp(6)
+  created_by    Int?
+  updated_at    DateTime?       @db.Timestamp(0)
+  updated_by    Int?
+  deleted_at    DateTime?       @db.Timestamp(6)
+  title         String          @db.VarChar(255)
+  color         String?         @db.VarChar(255)
+  ticket_system ticket_system[]
+}
+
+model notification_user {
+  id              Int            @id @default(autoincrement())
+  uuid            String         @db.VarChar(36)
+  created_at      DateTime       @default(now()) @db.Timestamp(6)
+  created_by      Int?
+  updated_at      DateTime?      @db.Timestamp(0)
+  updated_by      Int?
+  deleted_at      DateTime?      @db.Timestamp(6)
+  is_read         Int            @default(0) @db.TinyInt
+  user_id         Int?
+  notification_id Int?
+  users           users?         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_549f25e238a1be8a4ed7ec0ac33")
+  notifications   notifications? @relation(fields: [notification_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_cc974855ce8c702dfed67deaaa7")
+
+  @@index([user_id], map: "FK_549f25e238a1be8a4ed7ec0ac33")
+  @@index([notification_id], map: "FK_cc974855ce8c702dfed67deaaa7")
+}
+
+model notifications {
+  id                Int                 @id @default(autoincrement())
+  uuid              String              @db.VarChar(36)
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  created_by        Int?
+  updated_at        DateTime?           @db.Timestamp(0)
+  updated_by        Int?
+  deleted_at        DateTime?           @db.Timestamp(6)
+  title             String              @db.VarChar(255)
+  message           String              @db.LongText
+  order_id          Int?
+  is_admin          Int?                @db.TinyInt
+  notification_user notification_user[]
+  orders            orders?             @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5a4f82441ed359b5f135a109804")
+
+  @@index([order_id], map: "FK_5a4f82441ed359b5f135a109804")
+}
+
+model order_invoice {
+  id                      Int       @id @default(autoincrement())
+  uuid                    String    @db.VarChar(36)
+  created_at              DateTime  @default(now()) @db.Timestamp(6)
+  created_by              Int?
+  updated_at              DateTime? @db.Timestamp(0)
+  updated_by              Int?
+  deleted_at              DateTime? @db.Timestamp(6)
+  invoice_url             String    @db.VarChar(255)
+  invoice_number          Int?
+  invoice_date            DateTime? @db.Date
+  due_date                DateTime? @db.Date
+  order_number            Int?
+  customer_name           String?   @db.VarChar(255)
+  outlet_name             String?   @db.VarChar(255)
+  outlet_address          String?   @db.Text
+  sub_total               Float?    @db.Float
+  total_in_words          String?   @db.VarChar(255)
+  order_id                Int
+  products                String    @db.LongText
+  billing_name            String?   @db.VarChar(255)
+  billing_address         String?   @db.LongText
+  billing_contact         String?   @db.VarChar(255)
+  gst_number              String?   @db.VarChar(255)
+  customer_contact_number String?   @db.VarChar(255)
+  discount                Float?    @db.Float
+  credits_used            Int?
+  final_amount            Int?
+  orders                  orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_b7a6c70d136a872279357eef75e")
+
+  @@index([order_id], map: "FK_b7a6c70d136a872279357eef75e")
+}
+
+model order_products {
+  id         Int       @id @default(autoincrement())
+  uuid       String    @db.VarChar(36)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime? @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime? @db.Timestamp(6)
+  order_id   Int
+  product_id Int
+  quantity   Int       @default(1)
+  unit_price Float?    @db.Float
+  tax        Float?    @db.Float
+  products   products  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_2d58e8bd11dc840b39f99824d84")
+  orders     orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f258ce2f670b34b38630914cf9e")
+
+  @@index([product_id], map: "FK_2d58e8bd11dc840b39f99824d84")
+  @@index([order_id], map: "FK_f258ce2f670b34b38630914cf9e")
+}
+
+model order_ratings {
+  id           Int       @id @default(autoincrement())
+  uuid         String    @db.VarChar(36)
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  created_by   Int?
+  updated_at   DateTime? @db.Timestamp(0)
+  updated_by   Int?
+  deleted_at   DateTime? @db.Timestamp(6)
+  rating_value Float     @db.Float
+  feedback     String?   @db.LongText
+  user_id      Int
+  order_id     Int
+  orders       orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_ac2ea4d30e34d7bb72afd11cea2")
+  users        users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_e0e639b893461e4d9f7effbd2d9")
+
+  @@index([order_id], map: "FK_ac2ea4d30e34d7bb72afd11cea2")
+  @@index([user_id], map: "FK_e0e639b893461e4d9f7effbd2d9")
+}
+
+model orders {
+  id                Int                 @id @default(autoincrement())
+  uuid              String              @db.VarChar(36)
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  created_by        Int?
+  updated_at        DateTime?           @db.Timestamp(0)
+  updated_by        Int?
+  deleted_at        DateTime?           @db.Timestamp(6)
+  total_order_value Float               @db.Float
+  cart_price        Float               @db.Float
+  delivery_charge   Float               @db.Float
+  user_id           Int
+  order_status      orders_order_status
+  credits_used      Float               @default(0) @db.Float
+  outlet_id         Int?
+  order_date        DateTime?           @db.DateTime(0)
+  phone_id          Int?
+  discount          Float               @default(0) @db.Float
+  payment_recevied  Int                 @default(0) @db.TinyInt
+  tax_deducted      Float               @default(0) @db.Float
+  order_receipt_url String?             @db.VarChar(255)
+  delivery_otp      String?             @db.VarChar(255)
+  attempts          Int                 @default(0)
+  is_verified       Int                 @default(0) @db.TinyInt
+  notifications     notifications[]
+  order_invoice     order_invoice[]
+  order_products    order_products[]
+  order_ratings     order_ratings[]
+  user_outlets      user_outlets?       @relation(fields: [outlet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6b6f1742b38c5f7caedd3477ee2")
+  outlet_phones     outlet_phones?      @relation(fields: [phone_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_885b003a35025ee47307375a087")
+  users             users               @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a922b820eeef29ac1c6800e826a")
+  purchase_order    purchase_order[]
+  ticket_system     ticket_system[]
+
+  @@index([outlet_id], map: "FK_6b6f1742b38c5f7caedd3477ee2")
+  @@index([phone_id], map: "FK_885b003a35025ee47307375a087")
+  @@index([user_id], map: "FK_a922b820eeef29ac1c6800e826a")
+}
+
+model outlet_images {
+  id           Int           @id @default(autoincrement())
+  uuid         String        @db.VarChar(36)
+  created_at   DateTime      @default(now()) @db.Timestamp(6)
+  created_by   Int?
+  updated_at   DateTime?     @db.Timestamp(0)
+  updated_by   Int?
+  deleted_at   DateTime?     @db.Timestamp(6)
+  image_url    String        @db.VarChar(255)
+  outlet_id    Int?
+  user_outlets user_outlets? @relation(fields: [outlet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_9775959a8b2ec2abb329b5a4e14")
+
+  @@index([outlet_id], map: "FK_9775959a8b2ec2abb329b5a4e14")
+}
+
+model outlet_phones {
+  id                  Int          @id @default(autoincrement())
+  uuid                String       @db.VarChar(36)
+  created_at          DateTime     @default(now()) @db.Timestamp(6)
+  created_by          Int?
+  updated_at          DateTime?    @db.Timestamp(0)
+  updated_by          Int?
+  deleted_at          DateTime?    @db.Timestamp(6)
+  contact_person_name String       @db.VarChar(255)
+  phone_number        String       @db.VarChar(255)
+  outlet_id           Int
+  orders              orders[]
+  user_outlets        user_outlets @relation(fields: [outlet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_1c2f1bff900ab8f59fb72aab795")
+
+  @@index([outlet_id], map: "FK_1c2f1bff900ab8f59fb72aab795")
+}
+
+model product_coupons {
+  id          Int       @id @default(autoincrement())
+  uuid        String    @db.VarChar(36)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  created_by  Int?
+  updated_at  DateTime? @db.Timestamp(0)
+  updated_by  Int?
+  deleted_at  DateTime? @db.Timestamp(6)
+  title       String?   @db.VarChar(255)
+  description String?   @db.LongText
+  code        String    @db.VarChar(255)
+  discount    Float?    @db.Float
+  price       Float?    @db.Float
+  is_active   Int       @default(1) @db.TinyInt
+}
+
+model product_images {
+  id          Int                  @id @default(autoincrement())
+  uuid        String               @db.VarChar(36)
+  created_at  DateTime             @default(now()) @db.Timestamp(6)
+  created_by  Int?
+  updated_at  DateTime?            @db.Timestamp(0)
+  updated_by  Int?
+  deleted_at  DateTime?            @db.Timestamp(6)
+  image_url   String               @db.VarChar(255)
+  product_id  Int
+  image_order Int
+  type        product_images_type?
+  products    products             @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_4f166bb8c2bfcef2498d97b4068")
+
+  @@index([product_id], map: "FK_4f166bb8c2bfcef2498d97b4068")
+}
+
+model product_pricing {
+  id         Int       @id @default(autoincrement())
+  uuid       String    @db.VarChar(36)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime? @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime? @db.Timestamp(6)
+  product_id Int
+  quantity   Int?
+  price      Float?    @db.Float
+  label      String?   @db.VarChar(255)
+  products   products  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_bf55ac56eaa6394e8dfca101d2c")
+
+  @@index([product_id], map: "FK_bf55ac56eaa6394e8dfca101d2c")
+}
+
+model product_ratings {
+  id           Int       @id @default(autoincrement())
+  uuid         String    @db.VarChar(36)
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  created_by   Int?
+  updated_at   DateTime? @db.Timestamp(0)
+  updated_by   Int?
+  deleted_at   DateTime? @db.Timestamp(6)
+  rating_value Float     @db.Float
+  feedback     String?   @db.LongText
+  user_id      Int
+  product_id   Int?
+  users        users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_25a422fb6e1a8999db0d4854621")
+  products     products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_538c9489e98d4874e8db0c4cafd")
+
+  @@index([user_id], map: "FK_25a422fb6e1a8999db0d4854621")
+  @@index([product_id], map: "FK_538c9489e98d4874e8db0c4cafd")
+}
+
+model products {
+  id                         Int                          @id @default(autoincrement())
+  uuid                       String                       @db.VarChar(36)
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  created_by                 Int?
+  updated_at                 DateTime?                    @db.Timestamp(0)
+  updated_by                 Int?
+  deleted_at                 DateTime?                    @db.Timestamp(6)
+  product_name               String                       @db.VarChar(255)
+  product_description        String?                      @db.LongText
+  product_price              Float                        @db.Float
+  category_id                Int?
+  sub_category_id            Int?
+  brand_id                   Int?
+  diff_id                    Int?
+  item_number                String?                      @db.VarChar(255)
+  is_active                  Int?                         @default(1) @db.TinyInt
+  hsn_code                   String?                      @db.VarChar(255)
+  warehouse                  products_warehouse?
+  tax                        Int?
+  quantity_per_package       Int?
+  weight_per_purchasing_unit Float?                       @db.Float
+  weight_per_sales_unit      Float?                       @db.Float
+  inst_price                 Float?                       @db.Float
+  manufacturer_id            Int?
+  moq                        String?                      @db.VarChar(255)
+  embedding                  Json?
+  cart                       cart[]
+  order_products             order_products[]
+  product_images             product_images[]
+  product_pricing            product_pricing[]
+  product_ratings            product_ratings[]
+  master_brands              master_brands?               @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_1530a6f15d3c79d1b70be98f2be")
+  master_sub_category        master_sub_category?         @relation(fields: [sub_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_3fffb0be83ac483af3a55f41170")
+  master_manufacturers       master_manufacturers?        @relation(fields: [manufacturer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5bc36ce05cc397317480efb18f6")
+  master_category            master_category?             @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_9a5f6868c96e0069e699f33e124")
+  user_products              user_products[]
+  user_products_multipricing user_products_multipricing[]
+
+  @@index([brand_id], map: "FK_1530a6f15d3c79d1b70be98f2be")
+  @@index([sub_category_id], map: "FK_3fffb0be83ac483af3a55f41170")
+  @@index([manufacturer_id], map: "FK_5bc36ce05cc397317480efb18f6")
+  @@index([category_id], map: "FK_9a5f6868c96e0069e699f33e124")
+}
+
+model purchase_order {
+  id                   Int       @id @default(autoincrement())
+  uuid                 String    @db.VarChar(36)
+  created_at           DateTime  @default(now()) @db.Timestamp(6)
+  created_by           Int?
+  updated_at           DateTime? @db.Timestamp(0)
+  updated_by           Int?
+  deleted_at           DateTime? @db.Timestamp(6)
+  bill_from_name       String    @db.VarChar(255)
+  bill_from_address    String    @db.LongText
+  bill_from_gstin      String    @db.VarChar(255)
+  bill_from_phone      String    @db.VarChar(255)
+  shipped_from_name    String    @db.VarChar(255)
+  shipped_from_address String    @db.LongText
+  shipped_from_gstin   String    @db.VarChar(255)
+  shipped_from_phone   String    @db.VarChar(255)
+  bill_to_name         String    @db.VarChar(255)
+  bill_to_address      String    @db.LongText
+  bill_to_state        String    @db.VarChar(255)
+  bill_to_gstin        String    @db.VarChar(255)
+  bill_to_phone        String    @db.VarChar(255)
+  ship_to_name         String    @db.VarChar(255)
+  ship_to_address      String    @db.LongText
+  ship_to_state        String    @db.VarChar(255)
+  ship_to_gstin        String    @db.VarChar(255)
+  ship_to_phone        String    @db.VarChar(255)
+  po_number            String    @db.VarChar(255)
+  po_date              DateTime? @db.DateTime(0)
+  delivery_date        DateTime? @db.DateTime(0)
+  products             String    @db.Text
+  delivery_charge      Float     @default(0) @db.Float
+  receipt_url          String?   @db.VarChar(255)
+  sub_total            Float     @db.Float
+  order_id             Int
+  ship_to_landmark     String    @db.VarChar(255)
+  ship_to_fssai        String    @db.VarChar(255)
+  email_id             String    @db.VarChar(255)
+  credits_used         Int
+  discount             Int?
+  final_amount         Int?
+  total_in_words       String?   @db.VarChar(255)
+  orders               orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_0996beb5005c12fef3a8a01047a")
+
+  @@index([order_id], map: "FK_0996beb5005c12fef3a8a01047a")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model temp_categories {
+  title     String? @db.VarChar(255)
+  image_url String? @db.Text
+
+  @@ignore
+}
+
+model test_master {
+  id         Int       @id @default(autoincrement())
+  uuid       String    @db.VarChar(36)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  created_by Int?
+  updated_at DateTime? @db.Timestamp(0)
+  updated_by Int?
+  deleted_at DateTime? @db.Timestamp(6)
+  title      String    @db.VarChar(255)
+}
+
+model ticket_system {
+  id                     Int                     @id @default(autoincrement())
+  uuid                   String                  @db.VarChar(36)
+  created_at             DateTime                @default(now()) @db.Timestamp(6)
+  created_by             Int?
+  updated_at             DateTime?               @db.Timestamp(0)
+  updated_by             Int?
+  deleted_at             DateTime?               @db.Timestamp(6)
+  ticket_number          Int?
+  ticket_subject         String                  @db.VarChar(255)
+  ticket_description     String                  @db.LongText
+  ticket_reply           String?                 @db.LongText
+  ticket_status_id       Int?
+  ticket_category_id     Int?
+  user_id                Int?
+  order_id               Int?
+  chat_messages          chat_messages[]
+  users                  users?                  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_125b9c536edc7a20ef240cf4dc0")
+  orders                 orders?                 @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_12f4026b824533e53bea1ba99ce")
+  master_ticket_category master_ticket_category? @relation(fields: [ticket_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_19b4d8f8564225477faf60bbb4a")
+  master_ticket_status   master_ticket_status?   @relation(fields: [ticket_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_2084744ecc05052d7c91320231b")
+
+  @@index([user_id], map: "FK_125b9c536edc7a20ef240cf4dc0")
+  @@index([order_id], map: "FK_12f4026b824533e53bea1ba99ce")
+  @@index([ticket_category_id], map: "FK_19b4d8f8564225477faf60bbb4a")
+  @@index([ticket_status_id], map: "FK_2084744ecc05052d7c91320231b")
+}
+
+model user_mappings {
+  id                       Int                       @id @default(autoincrement())
+  uuid                     String                    @db.VarChar(36)
+  created_at               DateTime                  @default(now()) @db.Timestamp(6)
+  created_by               Int?
+  updated_at               DateTime?                 @db.Timestamp(0)
+  updated_by               Int?
+  deleted_at               DateTime?                 @db.Timestamp(6)
+  user_id                  Int?
+  product_id               String?                   @db.VarChar(255)
+  category_id              String?                   @db.VarChar(255)
+  sub_category_id          String?                   @db.VarChar(255)
+  brand_id                 String?                   @db.VarChar(255)
+  customer_category_id     Int?
+  users                    users?                    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_143213f452972f25dd25d05ff5d")
+  master_customer_category master_customer_category? @relation(fields: [customer_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f5ca4148971b4c7018c623bc6a8")
+
+  @@index([user_id], map: "FK_143213f452972f25dd25d05ff5d")
+  @@index([customer_category_id], map: "FK_f5ca4148971b4c7018c623bc6a8")
+}
+
+model user_outlets {
+  id              Int             @id @default(autoincrement())
+  uuid            String          @db.VarChar(36)
+  created_at      DateTime        @default(now()) @db.Timestamp(6)
+  created_by      Int?
+  updated_at      DateTime?       @db.Timestamp(0)
+  updated_by      Int?
+  deleted_at      DateTime?       @db.Timestamp(6)
+  outlet_name     String          @db.VarChar(255)
+  outlet_address  String          @db.LongText
+  user_id         Int?
+  outlet_landmark String          @db.VarChar(255)
+  outlet_state    String          @db.VarChar(255)
+  outlet_fssai    String          @db.VarChar(255)
+  outlet_gstin    String          @db.VarChar(255)
+  distance_km     Decimal?        @db.Decimal(8, 2)
+  orders          orders[]
+  outlet_images   outlet_images[]
+  outlet_phones   outlet_phones[]
+  users           users?          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6778b4b24e9dc325277621a95bb")
+
+  @@index([user_id], map: "FK_6778b4b24e9dc325277621a95bb")
+}
+
+model user_products {
+  id                       Int                       @id @default(autoincrement())
+  uuid                     String                    @db.VarChar(36)
+  created_at               DateTime                  @default(now()) @db.Timestamp(6)
+  created_by               Int?
+  updated_at               DateTime?                 @db.Timestamp(0)
+  updated_by               Int?
+  deleted_at               DateTime?                 @db.Timestamp(6)
+  item_price               Float?                    @db.Float
+  user_id                  Int?
+  product_id               Int
+  customer_category_id     Int?
+  master_customer_category master_customer_category? @relation(fields: [customer_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_098782796c1ed9039c4cc6913f1")
+  products                 products                  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_1c5a5dc69b4ac2b5ee475684779")
+  users                    users?                    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_494f0246efbe65076d1051c6539")
+
+  @@index([customer_category_id], map: "FK_098782796c1ed9039c4cc6913f1")
+  @@index([product_id], map: "FK_1c5a5dc69b4ac2b5ee475684779")
+  @@index([user_id], map: "FK_494f0246efbe65076d1051c6539")
+}
+
+model user_products_multipricing {
+  id                       Int                       @id @default(autoincrement())
+  uuid                     String                    @db.VarChar(36)
+  created_at               DateTime                  @default(now()) @db.Timestamp(6)
+  created_by               Int?
+  updated_at               DateTime?                 @db.Timestamp(0)
+  updated_by               Int?
+  deleted_at               DateTime?                 @db.Timestamp(6)
+  quantity                 Int
+  price                    Float                     @db.Float
+  user_id                  Int?
+  product_id               Int
+  label                    String?                   @db.VarChar(255)
+  customer_category_id     Int?
+  users                    users?                    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_3f8f9a05dc60d81c97f9f976fc7")
+  master_customer_category master_customer_category? @relation(fields: [customer_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_8898b8e507e8914fb0aea6e6c08")
+  products                 products                  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_d088a809e824b95b00e03588961")
+
+  @@index([user_id], map: "FK_3f8f9a05dc60d81c97f9f976fc7")
+  @@index([customer_category_id], map: "FK_8898b8e507e8914fb0aea6e6c08")
+  @@index([product_id], map: "FK_d088a809e824b95b00e03588961")
+}
+
+model users {
+  id                         Int                          @id @default(autoincrement())
+  uuid                       String                       @db.VarChar(36)
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  created_by                 Int?
+  updated_at                 DateTime?                    @db.Timestamp(0)
+  updated_by                 Int?
+  deleted_at                 DateTime?                    @db.Timestamp(6)
+  first_name                 String?                      @db.VarChar(255)
+  last_name                  String?                      @db.VarChar(255)
+  email                      String?                      @db.VarChar(255)
+  password                   String?                      @db.VarChar(255)
+  profile_image_url          String?                      @db.VarChar(255)
+  role_id                    Int?
+  credit_limit               Float                        @default(0) @db.Float
+  total_spent                Float?                       @default(0) @db.Float
+  user_name                  String?                      @db.VarChar(255)
+  otp                        String?                      @db.VarChar(255)
+  phone_number               String?                      @db.VarChar(255)
+  pan_number                 String?                      @db.VarChar(255)
+  gst_number                 String?                      @db.VarChar(255)
+  billing_name               String?                      @db.VarChar(255)
+  billing_address            String?                      @db.LongText
+  billing_contact            String?                      @db.VarChar(255)
+  no_of_days                 Int?
+  billing_state              String?                      @db.VarChar(255)
+  customer_category_id       Int?
+  cart                       cart[]
+  chat_messages              chat_messages[]
+  notification_user          notification_user[]
+  order_ratings              order_ratings[]
+  orders                     orders[]
+  product_ratings            product_ratings[]
+  ticket_system              ticket_system[]
+  user_mappings              user_mappings[]
+  user_outlets               user_outlets[]
+  user_products              user_products[]
+  user_products_multipricing user_products_multipricing[]
+  master_customer_category   master_customer_category?    @relation(fields: [customer_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_37f33dc517ce4f0c670b778f576")
+  master_roles               master_roles?                @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a2cecd1a3531c0b041e29ba46e1")
+
+  @@index([customer_category_id], map: "FK_37f33dc517ce4f0c670b778f576")
+  @@index([role_id], map: "FK_a2cecd1a3531c0b041e29ba46e1")
+}
+
+model delivery_settings {
+  id                Int                    @id @default(autoincrement())
+  uuid              String                 @db.VarChar(36)
+  created_at        DateTime               @default(now()) @db.Timestamp(6)
+  created_by        Int?
+  updated_at        DateTime?              @db.Timestamp(0)
+  updated_by        Int?
+  deleted_at        DateTime?              @db.Timestamp(6)
+  mode              delivery_settings_mode @default(PER_ORDER)
+  flat_amount       Decimal                @default(0.00) @db.Decimal(10, 2)
+  free_above_amount Decimal                @default(0.00) @db.Decimal(10, 2)
+  per_km_rate       Decimal                @default(0.00) @db.Decimal(10, 2)
+}
+
+enum product_images_type {
+  slider_video @map("slider-video")
+  guide_video  @map("guide-video")
+  slider_image @map("slider-image")
+}
+
+enum orders_order_status {
+  Placed
+  Packed
+  Dispatched
+  Out_for_delivery @map("Out-for-delivery")
+  Delivered
+}
+
+enum products_warehouse {
+  S1_DRY  @map("S1-DRY")
+  S1_FRZN @map("S1-FRZN")
+  S1_CHLD @map("S1-CHLD")
+}
+
+enum delivery_settings_mode {
+  FLAT
+  FREE_ABOVE
+  PER_ORDER
+  PER_KM
+}
