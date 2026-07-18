@@ -1,5 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+
+const { PrismaClient } = pkg;
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set. Copy .env.example to .env and fill it in.");
