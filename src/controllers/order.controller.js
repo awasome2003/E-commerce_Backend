@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { ACTIVE, forUpdate } from "../lib/records.js";
+import { notifyCustomer } from "../lib/notify.js";
 
 /**
  * Client-side enum identifiers. Prisma sanitizes the hyphenated MySQL value
@@ -114,14 +115,32 @@ export async function updateOrderStatus(req, res, next) {
     }
 
     const id = Number(req.params.id);
-    const existing = await prisma.orders.findFirst({ where: { id, ...ACTIVE }, select: { id: true } });
+    const existing = await prisma.orders.findFirst({
+      where: { id, ...ACTIVE },
+      select: { id: true, user_id: true, order_status: true },
+    });
     if (!existing) return res.status(404).json({ message: "Order not found" });
 
-    const order = await prisma.orders.update({
-      where: { id },
-      data: forUpdate(req.user.id, { order_status }),
-      select: { id: true, order_status: true },
+    const order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.orders.update({
+        where: { id },
+        data: forUpdate(req.user.id, { order_status }),
+        select: { id: true, order_status: true },
+      });
+
+      // Tell the customer when the status actually changes (skip a no-op save).
+      if (existing.user_id && existing.order_status !== order_status) {
+        await notifyCustomer(tx, {
+          actorId: req.user.id,
+          userId: existing.user_id,
+          title: "Order update",
+          message: `Your order #${id} is now ${order_status.replace(/_/g, " ")}.`,
+          orderId: id,
+        });
+      }
+      return updated;
     });
+
     res.json(order);
   } catch (err) {
     next(err);

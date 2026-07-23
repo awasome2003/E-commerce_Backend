@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { ACTIVE, forCreate, forUpdate, forSoftDelete } from "../lib/records.js";
 import { resolvePrices } from "../lib/pricing.js";
 import { quoteDelivery } from "../lib/delivery.js";
+import { notifyCustomer } from "../lib/notify.js";
 
 /**
  * The storefront API — everything a signed-in customer can do.
@@ -11,8 +12,8 @@ import { quoteDelivery } from "../lib/delivery.js";
  * re-derives a price: a customer must be quoted the same number the admin panel
  * previews for them.
  *
- * Guarded by `requireCustomer`, not by the module permission matrix — that matrix
- * describes staff access to admin modules, and customers score zero on all of it.
+ * Guarded by the `Storefront` module in the permission matrix — the same matrix
+ * that governs every admin module, so there are no role-title special cases.
  */
 
 /** Attaches the resolved price to a list of products for this customer. */
@@ -264,9 +265,19 @@ export async function addToCart(req, res, next) {
 
     const product = await prisma.products.findFirst({
       where: { id: Number(product_id), ...ACTIVE, is_active: 1 },
-      select: { id: true },
+      select: { id: true, product_name: true },
     });
     if (!product) return res.status(404).json({ message: "Product not found" });
+
+    // Refuse a product with no usable price for this customer, rather than let it
+    // sit in the cart to be rejected only at checkout. The UI already hides the
+    // button, so this is defence-in-depth against a direct/buggy client.
+    const priced = await resolvePrices({ productIds: [product.id], userId: req.user.id, quantity: qty });
+    if (!priced.get(product.id)?.unit_price) {
+      return res.status(409).json({
+        message: `${product.product_name} has no price and cannot be added to the cart.`,
+      });
+    }
 
     // `cart` has no unique constraint on (user_id, product_id), so upsert is not
     // available — find, then add to the existing line or create one.
@@ -590,6 +601,15 @@ export async function checkout(req, res, next) {
           })),
         });
       }
+
+      // Confirm to the customer that their order landed.
+      await notifyCustomer(tx, {
+        actorId: req.user.id,
+        userId: req.user.id,
+        title: "Order placed",
+        message: `Your order #${created.id} for ${total} has been placed.`,
+        orderId: created.id,
+      });
 
       await tx.users.update({
         where: { id: req.user.id },

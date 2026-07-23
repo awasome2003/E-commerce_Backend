@@ -2,20 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { ACTIVE, forCreate } from "../lib/records.js";
-import { getPermissions } from "../middleware/rbac.js";
-
-/**
- * A role can reach the admin panel if it has read access to at least one module.
- * Customer roles have an all-zero permission matrix and so are rejected here.
- */
-async function rolesWithPanelAccess() {
-  const rows = await prisma.master_role_permissions.findMany({
-    where: { read: 1, ...ACTIVE },
-    select: { role_id: true },
-    distinct: ["role_id"],
-  });
-  return rows.map((r) => r.role_id).filter((id) => id !== null);
-}
+import { getPermissions, areasFor } from "../middleware/rbac.js";
 
 function publicUser(user) {
   return {
@@ -29,116 +16,102 @@ function publicUser(user) {
   };
 }
 
-export async function login(req, res, next) {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: "email and password are required" });
-    }
+const CANDIDATE_SELECT = {
+  id: true,
+  first_name: true,
+  last_name: true,
+  email: true,
+  password: true,
+  role_id: true,
+  profile_image_url: true,
+  credit_limit: true,
+  no_of_days: true,
+  master_roles: { select: { id: true, title: true } },
+};
 
-    const panelRoles = await rolesWithPanelAccess();
-
-    // `users.email` has no unique constraint and this database really does
-    // contain one address shared by an Admin and a Customer row. Restricting to
-    // panel-capable roles disambiguates, and we still verify the password
-    // against each candidate rather than assuming the first row is the right one.
-    const candidates = await prisma.users.findMany({
-      where: { email, role_id: { in: panelRoles }, ...ACTIVE },
-      select: {
-        id: true,
-        first_name: true,
-        last_name: true,
-        email: true,
-        password: true,
-        role_id: true,
-        profile_image_url: true,
-        master_roles: { select: { id: true, title: true } },
-      },
-    });
-
-    let authenticated = null;
-    for (const candidate of candidates) {
-      if (candidate.password && (await bcrypt.compare(password, candidate.password))) {
-        authenticated = candidate;
-        break;
-      }
-    }
-
-    if (!authenticated) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign(
-      { id: authenticated.id, role_id: authenticated.role_id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    res.json({
-      token,
-      user: publicUser(authenticated),
-      permissions: await getPermissions(authenticated.role_id),
-    });
-  } catch (err) {
-    next(err);
-  }
+function issueToken(user) {
+  return jwt.sign({ id: user.id, role_id: user.role_id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
 }
 
 /**
- * Storefront login.
+ * The single sign-in for everyone — staff and customers alike.
  *
- * Deliberately separate from the admin login and scoped to the Customer role.
- * The scoping is not cosmetic: one email in this database belongs to *both* an
- * Admin (id 1) and a Customer (id 74), and `users.email` has no unique
- * constraint — so each door must only admit its own audience. The same address
- * signing in here authenticates as the customer; on the admin login, as the admin.
+ * There is one door and one token; where you land afterwards is decided by the
+ * permission matrix (see `areasFor`), not by which endpoint you used.
+ *
+ * Ambiguity is handled rather than guessed at. `users.email` has no unique
+ * constraint, so two accounts could share an address. The password is therefore
+ * checked against **every** active account with that email:
+ *
+ *   0 match  -> invalid credentials
+ *   1 match  -> signed in
+ *   2+ match -> 409 listing the accounts; the client re-sends with `user_id`
+ *
+ * Silently picking one would log somebody into the wrong identity.
  */
-export async function customerLogin(req, res, next) {
+export async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password, user_id } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "email and password are required" });
     }
 
     const candidates = await prisma.users.findMany({
-      where: { email, master_roles: { title: "Customer" }, ...ACTIVE },
-      select: {
-        id: true,
-        first_name: true,
-        last_name: true,
-        email: true,
-        password: true,
-        role_id: true,
-        profile_image_url: true,
-        credit_limit: true,
-        no_of_days: true,
-        master_roles: { select: { id: true, title: true } },
-      },
+      where: { email, ...ACTIVE },
+      select: CANDIDATE_SELECT,
     });
 
-    let authenticated = null;
+    const matches = [];
     for (const candidate of candidates) {
       if (candidate.password && (await bcrypt.compare(password, candidate.password))) {
-        authenticated = candidate;
-        break;
+        matches.push(candidate);
       }
     }
 
-    if (!authenticated) return res.status(401).json({ message: "Invalid credentials" });
+    if (matches.length === 0) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    const token = jwt.sign(
-      { id: authenticated.id, role_id: authenticated.role_id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
+    let user = matches[0];
+
+    if (matches.length > 1) {
+      // The caller may disambiguate by re-sending with the chosen account id.
+      const chosen = user_id ? matches.find((m) => m.id === Number(user_id)) : null;
+      if (!chosen) {
+        return res.status(409).json({
+          message: "That email and password match more than one account. Choose one to continue.",
+          accounts: matches.map((m) => ({
+            user_id: m.id,
+            role: m.master_roles?.title ?? null,
+            name: [m.first_name, m.last_name].filter(Boolean).join(" ").trim() || m.email,
+          })),
+        });
+      }
+      user = chosen;
+    }
+
+    const permissions = await getPermissions(user.role_id);
+    const areas = areasFor(permissions);
+
+    // An account with no permissions at all can sign in but has nowhere to go —
+    // say so plainly instead of dropping them on an empty screen.
+    if (!areas.staff && !areas.shop) {
+      return res.status(403).json({
+        message: "Your account has no access configured. Please contact support.",
+      });
+    }
 
     res.json({
-      token,
+      token: issueToken(user),
       user: {
-        ...publicUser(authenticated),
-        credit_limit: authenticated.credit_limit,
-        no_of_days: authenticated.no_of_days,
+        ...publicUser(user),
+        credit_limit: user.credit_limit,
+        no_of_days: user.no_of_days,
       },
+      permissions,
+      areas,
     });
   } catch (err) {
     next(err);
@@ -153,10 +126,8 @@ export async function customerLogin(req, res, next) {
  * new vendor cannot award themselves terms by signing up.
  *
  * Email uniqueness is enforced here because the database will not do it —
- * `users.email` has no unique constraint, and this data already contains one
- * address shared by an Admin and a Customer, which makes "who is this?"
- * ambiguous. We refuse any address already in use by *any* active user rather
- * than add to that mess.
+ * `users.email` has no unique constraint. Any address already used by an active
+ * user is refused, which is what keeps [login] unambiguous.
  */
 export async function register(req, res, next) {
   try {
@@ -202,43 +173,36 @@ export async function register(req, res, next) {
         credit_limit: 0,
         no_of_days: null,
       }),
-      select: {
-        id: true,
-        first_name: true,
-        last_name: true,
-        email: true,
-        role_id: true,
-        profile_image_url: true,
-        credit_limit: true,
-        no_of_days: true,
-        master_roles: { select: { id: true, title: true } },
-      },
+      select: CANDIDATE_SELECT,
     });
+
+    const permissions = await getPermissions(created.role_id);
 
     // Signed straight in: making someone register and then log in again is a
     // pointless second hurdle.
-    const token = jwt.sign({ id: created.id, role_id: created.role_id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
     res.status(201).json({
-      token,
+      token: issueToken(created),
       user: {
         ...publicUser(created),
         credit_limit: created.credit_limit,
         no_of_days: created.no_of_days,
       },
+      permissions,
+      areas: areasFor(permissions),
     });
   } catch (err) {
     next(err);
   }
 }
 
+/** The signed-in user, their permissions, and which areas they may enter. */
 export async function me(req, res, next) {
   try {
+    const permissions = await getPermissions(req.user.role_id);
     res.json({
       user: publicUser(req.user),
-      permissions: await getPermissions(req.user.role_id),
+      permissions,
+      areas: areasFor(permissions),
     });
   } catch (err) {
     next(err);

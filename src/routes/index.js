@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { requireAuth, requireCustomer } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
 import { requirePermission, requireStaff, MODULES } from "../middleware/rbac.js";
+import { authLimiter } from "../middleware/rateLimit.js";
 
-import { login, customerLogin, register, me } from "../controllers/auth.controller.js";
+import { login, register, me } from "../controllers/auth.controller.js";
 import {
   getSettings as getDeliveryConfig,
   updateSettings as updateDeliveryConfig,
@@ -68,6 +69,28 @@ import {
   deleteCoupon,
 } from "../controllers/coupon.controller.js";
 import {
+  createMyRequest,
+  listMyRequests,
+  getMyRequest,
+  cancelMyRequest,
+  listRequests,
+  getRequest,
+  quoteRequest,
+  rejectRequest,
+  approveRequest,
+} from "../controllers/request.controller.js";
+import {
+  createCustomerFlatPrice,
+  updateCustomerFlatPrice,
+  deleteCustomerFlatPrice,
+  createCustomerTier,
+  updateCustomerTier,
+  deleteCustomerTier,
+  createProductTier,
+  updateProductTier,
+  deleteProductTier,
+} from "../controllers/price.controller.js";
+import {
   listBanners,
   getBanner,
   createBanner,
@@ -83,7 +106,11 @@ import {
   deleteRole,
 } from "../controllers/settings.controller.js";
 import { previewPrice } from "../controllers/pricing.controller.js";
-import { listNotifications } from "../controllers/notification.controller.js";
+import {
+  listNotifications,
+  listMyNotifications,
+  markMyNotificationsRead,
+} from "../controllers/notification.controller.js";
 import {
   listPurchaseOrders,
   getPurchaseOrder,
@@ -93,35 +120,47 @@ import {
 const router = Router();
 
 router.get("/health", (req, res) => res.json({ status: "ok" }));
-router.post("/auth/login", login);
-// Separate door for customers — see customerLogin for why the audiences must not
-// share one endpoint.
-router.post("/shop/auth/login", customerLogin);
-router.post("/shop/auth/register", register);
+
+// ONE sign-in for everyone. Where a user lands is decided by their permissions
+// (see `areasFor`), not by which endpoint they used.
+router.post("/auth/login", authLimiter, login);
+router.post("/auth/register", authLimiter, register);
+// Kept so existing storefront clients keep working after the login was unified.
+router.post("/shop/auth/login", authLimiter, login);
+router.post("/shop/auth/register", authLimiter, register);
 
 // Everything past this point requires a valid token. The catalogue included:
 // prices here are negotiated per customer and are not public information.
 router.use(requireAuth);
 
 // ---------------------------------------------------- storefront (customers)
-// Guarded by role, not by the module matrix: customers score zero on every
-// module, so the matrix cannot express "may shop".
+// Guarded by the same permission matrix as every other area — customers hold the
+// `Storefront` module, which staff roles never have.
 const shop = Router();
-shop.use(requireCustomer);
-shop.get("/me", (req, res) => res.json({ user: req.user }));
-shop.get("/filters", listShopFilters);
-shop.get("/products", listShopProducts);
-shop.get("/products/:id", getShopProduct);
-shop.get("/cart", getCart);
-shop.post("/cart", addToCart);
-shop.put("/cart/:id", updateCartItem);
-shop.delete("/cart/:id", removeCartItem);
-shop.get("/outlets", listMyOutlets);
-shop.post("/outlets", createOutlet);
-shop.get("/checkout/quote", quoteCheckout);
-shop.post("/checkout", checkout);
-shop.get("/orders", listMyOrders);
-shop.get("/orders/:id", getMyOrder);
+shop.get("/me", requirePermission(MODULES.STOREFRONT, "read"), me);
+shop.get("/filters", requirePermission(MODULES.STOREFRONT, "read"), listShopFilters);
+shop.get("/products", requirePermission(MODULES.STOREFRONT, "read"), listShopProducts);
+shop.get("/products/:id", requirePermission(MODULES.STOREFRONT, "read"), getShopProduct);
+shop.get("/cart", requirePermission(MODULES.STOREFRONT, "read"), getCart);
+shop.post("/cart", requirePermission(MODULES.STOREFRONT, "create"), addToCart);
+shop.put("/cart/:id", requirePermission(MODULES.STOREFRONT, "update"), updateCartItem);
+shop.delete("/cart/:id", requirePermission(MODULES.STOREFRONT, "delete"), removeCartItem);
+shop.get("/outlets", requirePermission(MODULES.STOREFRONT, "read"), listMyOutlets);
+shop.post("/outlets", requirePermission(MODULES.STOREFRONT, "create"), createOutlet);
+shop.get("/checkout/quote", requirePermission(MODULES.STOREFRONT, "read"), quoteCheckout);
+shop.post("/checkout", requirePermission(MODULES.STOREFRONT, "create"), checkout);
+// Requests are customer-owned, so they sit behind Storefront like the cart —
+// every handler additionally scopes to req.user.id, so one customer can never
+// read or withdraw another's.
+// The customer's own notifications (created for them, e.g. request approved).
+shop.get("/notifications", requirePermission(MODULES.STOREFRONT, "read"), listMyNotifications);
+shop.post("/notifications/read", requirePermission(MODULES.STOREFRONT, "update"), markMyNotificationsRead);
+shop.get("/requests", requirePermission(MODULES.STOREFRONT, "read"), listMyRequests);
+shop.post("/requests", requirePermission(MODULES.STOREFRONT, "create"), createMyRequest);
+shop.get("/requests/:id", requirePermission(MODULES.STOREFRONT, "read"), getMyRequest);
+shop.delete("/requests/:id", requirePermission(MODULES.STOREFRONT, "delete"), cancelMyRequest);
+shop.get("/orders", requirePermission(MODULES.STOREFRONT, "read"), listMyOrders);
+shop.get("/orders/:id", requirePermission(MODULES.STOREFRONT, "read"), getMyOrder);
 router.use("/shop", shop);
 
 router.get("/auth/me", me);
@@ -137,6 +176,11 @@ products.get("/:id", requirePermission(MODULES.PRODUCTS, "read"), getProduct);
 products.post("/", requirePermission(MODULES.PRODUCTS, "create"), createProduct);
 products.put("/:id", requirePermission(MODULES.PRODUCTS, "update"), updateProduct);
 products.delete("/:id", requirePermission(MODULES.PRODUCTS, "delete"), deleteProduct);
+// Global quantity tiers apply to everyone, so they belong to the product, not to
+// any one customer.
+products.post("/:id/tiers", requirePermission(MODULES.PRODUCTS, "create"), createProductTier);
+products.put("/:id/tiers/:rowId", requirePermission(MODULES.PRODUCTS, "update"), updateProductTier);
+products.delete("/:id/tiers/:rowId", requirePermission(MODULES.PRODUCTS, "delete"), deleteProductTier);
 router.use("/products", products);
 
 const orders = Router();
@@ -159,6 +203,13 @@ customers.patch("/outlets/:id/distance", requirePermission(MODULES.CUSTOMERS, "u
 customers.get("/", requirePermission(MODULES.CUSTOMERS, "read"), listCustomers);
 customers.get("/:id", requirePermission(MODULES.CUSTOMERS, "read"), getCustomer);
 customers.get("/:id/pricing", requirePermission(MODULES.CUSTOMERS, "read"), getCustomerPricing);
+// Negotiated prices are customer data, so they sit behind the Customers module.
+customers.post("/:id/pricing/flat", requirePermission(MODULES.CUSTOMERS, "create"), createCustomerFlatPrice);
+customers.put("/:id/pricing/flat/:rowId", requirePermission(MODULES.CUSTOMERS, "update"), updateCustomerFlatPrice);
+customers.delete("/:id/pricing/flat/:rowId", requirePermission(MODULES.CUSTOMERS, "delete"), deleteCustomerFlatPrice);
+customers.post("/:id/pricing/tiers", requirePermission(MODULES.CUSTOMERS, "create"), createCustomerTier);
+customers.put("/:id/pricing/tiers/:rowId", requirePermission(MODULES.CUSTOMERS, "update"), updateCustomerTier);
+customers.delete("/:id/pricing/tiers/:rowId", requirePermission(MODULES.CUSTOMERS, "delete"), deleteCustomerTier);
 customers.put("/:id", requirePermission(MODULES.CUSTOMERS, "update"), updateCustomer);
 router.use("/customers", customers);
 
@@ -168,6 +219,15 @@ tickets.get("/:id", requirePermission(MODULES.SUPPORT, "read"), getTicket);
 tickets.post("/:id/messages", requirePermission(MODULES.SUPPORT, "create"), addMessage);
 tickets.patch("/:id/status", requirePermission(MODULES.SUPPORT, "update"), updateTicketStatus);
 router.use("/tickets", tickets);
+
+const requests = Router();
+requests.get("/", requirePermission(MODULES.REQUESTS, "read"), listRequests);
+requests.get("/:id", requirePermission(MODULES.REQUESTS, "read"), getRequest);
+requests.post("/:id/quote", requirePermission(MODULES.REQUESTS, "update"), quoteRequest);
+requests.post("/:id/reject", requirePermission(MODULES.REQUESTS, "update"), rejectRequest);
+// Approval creates an order, so it needs create rights, not merely update.
+requests.post("/:id/approve", requirePermission(MODULES.REQUESTS, "create"), approveRequest);
+router.use("/requests", requests);
 
 const coupons = Router();
 coupons.get("/", requirePermission(MODULES.COUPON, "read"), listCoupons);

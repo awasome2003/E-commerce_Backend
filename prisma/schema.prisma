@@ -369,6 +369,7 @@ model orders {
   user_outlets      user_outlets?       @relation(fields: [outlet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6b6f1742b38c5f7caedd3477ee2")
   outlet_phones     outlet_phones?      @relation(fields: [phone_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_885b003a35025ee47307375a087")
   users             users               @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a922b820eeef29ac1c6800e826a")
+  product_requests  product_requests[]
   purchase_order    purchase_order[]
   ticket_system     ticket_system[]
 
@@ -510,6 +511,7 @@ model products {
   product_images             product_images[]
   product_pricing            product_pricing[]
   product_ratings            product_ratings[]
+  product_request_items      product_request_items[]
   master_brands              master_brands?               @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_1530a6f15d3c79d1b70be98f2be")
   master_sub_category        master_sub_category?         @relation(fields: [sub_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_3fffb0be83ac483af3a55f41170")
   master_manufacturers       master_manufacturers?        @relation(fields: [manufacturer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5bc36ce05cc397317480efb18f6")
@@ -638,25 +640,26 @@ model user_mappings {
 }
 
 model user_outlets {
-  id              Int             @id @default(autoincrement())
-  uuid            String          @db.VarChar(36)
-  created_at      DateTime        @default(now()) @db.Timestamp(6)
-  created_by      Int?
-  updated_at      DateTime?       @db.Timestamp(0)
-  updated_by      Int?
-  deleted_at      DateTime?       @db.Timestamp(6)
-  outlet_name     String          @db.VarChar(255)
-  outlet_address  String          @db.LongText
-  user_id         Int?
-  outlet_landmark String          @db.VarChar(255)
-  outlet_state    String          @db.VarChar(255)
-  outlet_fssai    String          @db.VarChar(255)
-  outlet_gstin    String          @db.VarChar(255)
-  distance_km     Decimal?        @db.Decimal(8, 2)
-  orders          orders[]
-  outlet_images   outlet_images[]
-  outlet_phones   outlet_phones[]
-  users           users?          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6778b4b24e9dc325277621a95bb")
+  id               Int                @id @default(autoincrement())
+  uuid             String             @db.VarChar(36)
+  created_at       DateTime           @default(now()) @db.Timestamp(6)
+  created_by       Int?
+  updated_at       DateTime?          @db.Timestamp(0)
+  updated_by       Int?
+  deleted_at       DateTime?          @db.Timestamp(6)
+  outlet_name      String             @db.VarChar(255)
+  outlet_address   String             @db.LongText
+  user_id          Int?
+  outlet_landmark  String             @db.VarChar(255)
+  outlet_state     String             @db.VarChar(255)
+  outlet_fssai     String             @db.VarChar(255)
+  outlet_gstin     String             @db.VarChar(255)
+  distance_km      Decimal?           @db.Decimal(8, 2)
+  orders           orders[]
+  outlet_images    outlet_images[]
+  outlet_phones    outlet_phones[]
+  product_requests product_requests[]
+  users            users?             @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6778b4b24e9dc325277621a95bb")
 
   @@index([user_id], map: "FK_6778b4b24e9dc325277621a95bb")
 }
@@ -738,6 +741,7 @@ model users {
   order_ratings              order_ratings[]
   orders                     orders[]
   product_ratings            product_ratings[]
+  product_requests           product_requests[]
   ticket_system              ticket_system[]
   user_mappings              user_mappings[]
   user_outlets               user_outlets[]
@@ -762,6 +766,52 @@ model delivery_settings {
   flat_amount       Decimal                @default(0.00) @db.Decimal(10, 2)
   free_above_amount Decimal                @default(0.00) @db.Decimal(10, 2)
   per_km_rate       Decimal                @default(0.00) @db.Decimal(10, 2)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model product_request_items {
+  id               Int              @id @default(autoincrement())
+  uuid             String           @db.VarChar(36)
+  created_at       DateTime         @default(now()) @db.Timestamp(6)
+  created_by       Int?
+  updated_at       DateTime?        @db.Timestamp(0)
+  updated_by       Int?
+  deleted_at       DateTime?        @db.Timestamp(6)
+  request_id       Int
+  product_id       Int?
+  product_name     String?          @db.VarChar(255)
+  quantity         Int
+  quoted_price     Decimal?         @db.Decimal(10, 2)
+  products         products?        @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_product_request_items_product")
+  product_requests product_requests @relation(fields: [request_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_product_request_items_request")
+
+  @@index([product_id], map: "FK_product_request_items_product")
+  @@index([request_id], map: "IDX_product_request_items_request")
+}
+
+model product_requests {
+  id                    Int                     @id @default(autoincrement())
+  uuid                  String                  @db.VarChar(36)
+  created_at            DateTime                @default(now()) @db.Timestamp(6)
+  created_by            Int?
+  updated_at            DateTime?               @db.Timestamp(0)
+  updated_by            Int?
+  deleted_at            DateTime?               @db.Timestamp(6)
+  user_id               Int
+  outlet_id             Int?
+  status                product_requests_status @default(Pending)
+  note                  String?                 @db.LongText
+  admin_reply           String?                 @db.LongText
+  order_id              Int?
+  product_request_items product_request_items[]
+  orders                orders?                 @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_product_requests_order")
+  user_outlets          user_outlets?           @relation(fields: [outlet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_product_requests_outlet")
+  users                 users                   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_product_requests_user")
+
+  @@index([order_id], map: "FK_product_requests_order")
+  @@index([outlet_id], map: "FK_product_requests_outlet")
+  @@index([status], map: "IDX_product_requests_status")
+  @@index([user_id], map: "IDX_product_requests_user")
 }
 
 enum product_images_type {
@@ -789,4 +839,11 @@ enum delivery_settings_mode {
   FREE_ABOVE
   PER_ORDER
   PER_KM
+}
+
+enum product_requests_status {
+  Pending
+  Quoted
+  Approved
+  Rejected
 }

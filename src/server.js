@@ -1,5 +1,10 @@
 import "dotenv/config";
-import app from "./app.js";
+import { validateConfig } from "./lib/config.js";
+
+// Fail fast on bad config before importing the app / connecting anything.
+validateConfig();
+
+const { default: app } = await import("./app.js");
 
 const PORT = process.env.PORT || 5000;
 

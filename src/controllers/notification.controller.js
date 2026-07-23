@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { ACTIVE } from "../lib/records.js";
+import { ACTIVE, forUpdate } from "../lib/records.js";
 
 /**
  * Notifications — read-only.
@@ -17,6 +17,56 @@ import { ACTIVE } from "../lib/records.js";
  * are collapsed into one entry carrying a `duplicates` count. The underlying rows
  * are left untouched — this is a display fix, not a data migration.
  */
+
+/**
+ * The signed-in customer's own notifications.
+ *
+ * Unlike the admin view, these are read through `notification_user` (one row per
+ * recipient, carrying `is_read`) scoped to `req.user.id` — so a customer only
+ * ever sees notifications addressed to them. The `id` returned is the
+ * notification_user row id, which is what "mark read" acts on.
+ */
+export async function listMyNotifications(req, res, next) {
+  try {
+    const rows = await prisma.notification_user.findMany({
+      where: { user_id: req.user.id, ...ACTIVE, notifications: { ...ACTIVE } },
+      select: {
+        id: true,
+        is_read: true,
+        created_at: true,
+        notifications: { select: { title: true, message: true, order_id: true } },
+      },
+      orderBy: { created_at: "desc" },
+      take: 100,
+    });
+
+    const items = rows.map((r) => ({
+      id: r.id,
+      title: r.notifications?.title ?? "",
+      message: r.notifications?.message ?? "",
+      order_id: r.notifications?.order_id ?? null,
+      is_read: r.is_read === 1,
+      created_at: r.created_at,
+    }));
+
+    res.json({ items, unread: items.filter((i) => !i.is_read).length });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Marks all of the customer's unread notifications as read. */
+export async function markMyNotificationsRead(req, res, next) {
+  try {
+    await prisma.notification_user.updateMany({
+      where: { user_id: req.user.id, is_read: 0, ...ACTIVE },
+      data: forUpdate(req.user.id, { is_read: 1 }),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function listNotifications(req, res, next) {
   try {

@@ -48,18 +48,7 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-/**
- * Storefront guard.
- *
- * The module permission matrix describes staff access to admin modules, and both
- * Customer roles score zero on every module — so it cannot express "may shop".
- * Customers are identified by their role title instead. Two roles share the title
- * "Customer" (id 5 is retired, id 6 active), which is why this matches on the
- * title rather than an id.
- */
-export function requireCustomer(req, res, next) {
-  if (req.user?.master_roles?.title !== "Customer") {
-    return res.status(403).json({ message: "This area is for customers only" });
-  }
-  next();
-}
+// The storefront guard used to match on the role *title*, because customers had
+// no permission rows at all. They now hold the `Storefront` module, so the
+// storefront is guarded by the same matrix as everything else — see
+// `requirePermission(MODULES.STOREFRONT, …)` in the routes.
