@@ -735,6 +735,12 @@ model users {
   no_of_days                 Int?
   billing_state              String?                      @db.VarChar(255)
   customer_category_id       Int?
+  // Session / credential-lifecycle security (Tier 1). token_version invalidates
+  // all of a user's tokens when bumped (logout, password change); the other two
+  // drive per-account login lockout.
+  token_version              Int                          @default(0)
+  failed_login_attempts      Int                          @default(0)
+  locked_until               DateTime?                    @db.Timestamp(6)
   cart                       cart[]
   chat_messages              chat_messages[]
   notification_user          notification_user[]

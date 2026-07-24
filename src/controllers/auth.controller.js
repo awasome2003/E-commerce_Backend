@@ -26,14 +26,26 @@ const CANDIDATE_SELECT = {
   profile_image_url: true,
   credit_limit: true,
   no_of_days: true,
+  token_version: true,
+  failed_login_attempts: true,
+  locked_until: true,
   master_roles: { select: { id: true, title: true } },
 };
 
+// Per-account brute-force lockout policy.
+const MAX_FAILED_ATTEMPTS = 8;
+const LOCK_MINUTES = 15;
+// A throwaway hash so a login for a non-existent email still spends ~one bcrypt
+// compare — removes the timing side-channel that would otherwise reveal which
+// emails exist.
+const DUMMY_HASH = bcrypt.hashSync("timing-normalisation-placeholder", 10);
+
 function issueToken(user) {
-  return jwt.sign({ id: user.id, role_id: user.role_id }, process.env.JWT_SECRET, {
-    algorithm: "HS256",
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id: user.id, role_id: user.role_id, tv: user.token_version ?? 0 },
+    process.env.JWT_SECRET,
+    { algorithm: "HS256", expiresIn: "7d" },
+  );
 }
 
 /**
@@ -64,6 +76,22 @@ export async function login(req, res, next) {
       select: CANDIDATE_SELECT,
     });
 
+    // Per-account lockout: if the account(s) on this email are inside a lock
+    // window, refuse before spending any bcrypt time.
+    const now = new Date();
+    if (candidates.some((c) => c.locked_until && new Date(c.locked_until) > now)) {
+      return res
+        .status(429)
+        .json({ message: "Too many failed attempts. Please try again in a few minutes." });
+    }
+
+    // Normalise timing for a non-existent email so it cannot be told apart from a
+    // wrong password by response latency (account enumeration).
+    if (candidates.length === 0) {
+      await bcrypt.compare(password, DUMMY_HASH);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
     const matches = [];
     for (const candidate of candidates) {
       if (candidate.password && (await bcrypt.compare(password, candidate.password))) {
@@ -72,7 +100,32 @@ export async function login(req, res, next) {
     }
 
     if (matches.length === 0) {
+      // Count the failure against every account on this email, and lock them once
+      // the threshold is crossed.
+      await prisma.users.updateMany({
+        where: { email, ...ACTIVE },
+        data: { failed_login_attempts: { increment: 1 } },
+      });
+      const after = await prisma.users.findFirst({
+        where: { email, ...ACTIVE },
+        orderBy: { failed_login_attempts: "desc" },
+        select: { failed_login_attempts: true },
+      });
+      if (after && after.failed_login_attempts >= MAX_FAILED_ATTEMPTS) {
+        await prisma.users.updateMany({
+          where: { email, ...ACTIVE },
+          data: { locked_until: new Date(Date.now() + LOCK_MINUTES * 60000), failed_login_attempts: 0 },
+        });
+      }
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Correct password for at least one account — clear any failure/lock state.
+    if (candidates.some((c) => c.failed_login_attempts > 0 || c.locked_until)) {
+      await prisma.users.updateMany({
+        where: { email, ...ACTIVE },
+        data: { failed_login_attempts: 0, locked_until: null },
+      });
     }
 
     let user = matches[0];
@@ -206,6 +259,58 @@ export async function me(req, res, next) {
       permissions,
       areas: areasFor(permissions),
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Real logout — bumps the user's token_version so every token issued for this
+ * account (this device and any other) stops verifying on the next request.
+ */
+export async function logout(req, res, next) {
+  try {
+    await prisma.users.update({
+      where: { id: req.user.id },
+      data: { token_version: { increment: 1 } },
+    });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Change the signed-in user's password. Verifies the current password, stores a
+ * fresh bcrypt (cost 12) hash, and bumps token_version so every *other* session
+ * is invalidated; a new token is returned so the current device stays signed in.
+ */
+export async function changePassword(req, res, next) {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ message: "current_password and new_password are required" });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters" });
+    }
+
+    const user = await prisma.users.findFirst({
+      where: { id: req.user.id, ...ACTIVE },
+      select: { id: true, password: true, role_id: true },
+    });
+    if (!user || !user.password || !(await bcrypt.compare(current_password, user.password))) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    const hashed = await bcrypt.hash(new_password, 12);
+    const updated = await prisma.users.update({
+      where: { id: user.id },
+      data: { password: hashed, token_version: { increment: 1 } },
+      select: { id: true, role_id: true, token_version: true },
+    });
+
+    res.json({ token: issueToken(updated) });
   } catch (err) {
     next(err);
   }

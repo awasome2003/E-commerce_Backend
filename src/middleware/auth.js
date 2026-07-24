@@ -33,12 +33,20 @@ export async function requireAuth(req, res, next) {
         last_name: true,
         email: true,
         role_id: true,
+        token_version: true,
         master_roles: { select: { id: true, title: true } },
       },
     });
 
     if (!user) {
       return res.status(401).json({ message: "User no longer exists" });
+    }
+
+    // token_version revocation: a bumped version (logout / password change)
+    // invalidates every token minted before it. Tokens predating this claim carry
+    // no `tv`; treat them as version 0 so the rollout does not force a mass logout.
+    if ((payload.tv ?? 0) !== (user.token_version ?? 0)) {
+      return res.status(401).json({ message: "Session expired, please sign in again" });
     }
 
     req.user = user;

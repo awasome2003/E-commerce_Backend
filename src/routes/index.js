@@ -3,7 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requirePermission, requireStaff, MODULES } from "../middleware/rbac.js";
 import { authLimiter } from "../middleware/rateLimit.js";
 
-import { login, register, me } from "../controllers/auth.controller.js";
+import { login, register, me, logout, changePassword } from "../controllers/auth.controller.js";
 import {
   getSettings as getDeliveryConfig,
   updateSettings as updateDeliveryConfig,
@@ -164,6 +164,8 @@ shop.get("/orders/:id", requirePermission(MODULES.STOREFRONT, "read"), getMyOrde
 router.use("/shop", shop);
 
 router.get("/auth/me", me);
+router.post("/auth/logout", logout);
+router.post("/auth/password", changePassword);
 // Spans several modules, so it has no single permission to sit behind — but it
 // must still be staff-only: it exposes revenue, customer counts and recent orders.
 router.get("/dashboard", requireStaff, getDashboard);
