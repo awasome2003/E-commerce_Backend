@@ -31,6 +31,7 @@ const CANDIDATE_SELECT = {
 
 function issueToken(user) {
   return jwt.sign({ id: user.id, role_id: user.role_id }, process.env.JWT_SECRET, {
+    algorithm: "HS256",
     expiresIn: "7d",
   });
 }
@@ -159,8 +160,9 @@ export async function register(req, res, next) {
       return res.status(500).json({ message: "No customer role is configured" });
     }
 
-    // Same cost as every existing hash in this database ($2a$10$).
-    const hashed = await bcrypt.hash(password, 10);
+    // Cost 12 (above the legacy $2a$10$ hashes, which still verify; they can be
+    // transparently upgraded on next successful login if desired).
+    const hashed = await bcrypt.hash(password, 12);
 
     const created = await prisma.users.create({
       data: forCreate(null, {

@@ -261,7 +261,12 @@ export async function addToCart(req, res, next) {
     const { product_id, quantity = 1 } = req.body;
     if (!product_id) return res.status(400).json({ message: "product_id is required" });
 
-    const qty = Math.max(Number(quantity) || 1, 1);
+    // Whole number only, with a sane ceiling — a fractional value would throw on
+    // the Int column (500), and an absurd value would skew line/total math.
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 1_000_000) {
+      return res.status(400).json({ message: "quantity must be a whole number between 1 and 1,000,000" });
+    }
 
     const product = await prisma.products.findFirst({
       where: { id: Number(product_id), ...ACTIVE, is_active: 1 },
@@ -311,7 +316,9 @@ export async function updateCartItem(req, res, next) {
   try {
     const { quantity } = req.body;
     const qty = Number(quantity);
-    if (!qty || qty < 1) return res.status(400).json({ message: "quantity must be at least 1" });
+    if (!Number.isInteger(qty) || qty < 1 || qty > 1_000_000) {
+      return res.status(400).json({ message: "quantity must be a whole number between 1 and 1,000,000" });
+    }
 
     // Scoped by user_id so one customer cannot edit another's cart line.
     const result = await prisma.cart.updateMany({
@@ -435,6 +442,17 @@ export async function createOutlet(req, res, next) {
 export async function quoteCheckout(req, res, next) {
   try {
     const { outlet_id } = req.query;
+
+    // Ownership check: under PER_KM the quote reads the outlet's stored
+    // distance_km, so an unscoped outlet_id would leak another customer's outlet
+    // data. Mirror what checkout() enforces.
+    if (outlet_id) {
+      const owned = await prisma.user_outlets.findFirst({
+        where: { id: Number(outlet_id), user_id: req.user.id, ...ACTIVE },
+        select: { id: true },
+      });
+      if (!owned) return res.status(400).json({ message: "That outlet does not belong to you" });
+    }
 
     const rows = await prisma.cart.findMany({
       where: { user_id: req.user.id, ...ACTIVE },

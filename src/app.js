@@ -38,7 +38,10 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin || isAllowed(origin)) return callback(null, true);
-      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      // 403, not a bare Error (which the handler would turn into a 500).
+      const err = new Error(`Origin ${origin} is not allowed by CORS`);
+      err.status = 403;
+      callback(err);
     },
   }),
 );

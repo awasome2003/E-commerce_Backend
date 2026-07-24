@@ -59,6 +59,30 @@ function validate(data, { partial } = {}) {
   return null;
 }
 
+/**
+ * `link` and `image_url` are rendered as href/src in the admin UI, so a stored
+ * `javascript:` / `data:` / `vbscript:` value would be a stored-XSS payload.
+ * Allow only absolute http(s) URLs. Checks only the fields present in THIS
+ * request (never re-validates a legacy stored value on an unrelated edit).
+ */
+function validateUrls(data) {
+  for (const key of ["link", "image_url"]) {
+    if (data[key] === undefined) continue;
+    const value = String(data[key]).trim();
+    if (value === "") continue; // required-ness is handled by validate()
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      return `${key} must be a valid URL`;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return `${key} must be an http or https URL`;
+    }
+  }
+  return null;
+}
+
 export async function listBanners(req, res, next) {
   try {
     const rows = await prisma.master_banner_ads.findMany({
@@ -88,7 +112,7 @@ export async function getBanner(req, res, next) {
 export async function createBanner(req, res, next) {
   try {
     const data = pickWritable(req.body);
-    const error = validate(data);
+    const error = validate(data) || validateUrls(data);
     if (error) return res.status(400).json({ message: error });
 
     const row = await prisma.master_banner_ads.create({ data: forCreate(req.user.id, data) });
@@ -107,7 +131,7 @@ export async function updateBanner(req, res, next) {
     const data = pickWritable(req.body);
     // Range-check against the stored row so a partial edit cannot invert the window.
     const merged = { ...existing, ...data };
-    const error = validate(merged, { partial: true }) || validate(merged);
+    const error = validate(merged, { partial: true }) || validate(merged) || validateUrls(data);
     if (error) return res.status(400).json({ message: error });
 
     const row = await prisma.master_banner_ads.update({

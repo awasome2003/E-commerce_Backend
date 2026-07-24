@@ -325,6 +325,7 @@ export async function quoteRequest(req, res, next) {
 
     const ownIds = new Set(existing.product_request_items.map((i) => i.id));
     const updates = [];
+    const linkIds = [];
 
     for (const raw of rawItems ?? []) {
       const itemId = Number(raw.id);
@@ -337,14 +338,44 @@ export async function quoteRequest(req, res, next) {
       if (price !== null && (!Number.isFinite(price) || price < 0)) {
         return res.status(400).json({ message: `Item ${itemId}: price must be zero or more` });
       }
-      updates.push({ id: itemId, quoted_price: price });
+
+      // product_id is optional: absent/blank leaves the line untouched, while a
+      // real id links a free-text line to the catalogue so it can go on an order.
+      let productId;
+      if (raw.product_id !== undefined && raw.product_id !== null && raw.product_id !== "") {
+        productId = Number(raw.product_id);
+        if (!Number.isInteger(productId) || productId <= 0) {
+          return res.status(400).json({ message: `Item ${itemId}: invalid product` });
+        }
+        linkIds.push(productId);
+      }
+      updates.push({ id: itemId, quoted_price: price, productId });
+    }
+
+    // Validate every requested link exists before writing anything.
+    if (linkIds.length > 0) {
+      const found = await prisma.products.findMany({
+        where: { id: { in: linkIds } },
+        select: { id: true },
+      });
+      const ok = new Set(found.map((p) => p.id));
+      const missing = linkIds.find((pid) => !ok.has(pid));
+      if (missing) return res.status(400).json({ message: `Product #${missing} is not in the catalogue` });
     }
 
     await prisma.$transaction(async (tx) => {
       for (const update of updates) {
+        // Linking sets product_id and clears the free-text name — the line now
+        // points at a real product, which the table's CHECK constraint accepts
+        // as a catalogue line.
+        const data = { quoted_price: update.quoted_price };
+        if (update.productId) {
+          data.product_id = update.productId;
+          data.product_name = null;
+        }
         await tx.product_request_items.update({
           where: { id: update.id },
-          data: forUpdate(req.user.id, { quoted_price: update.quoted_price }),
+          data: forUpdate(req.user.id, data),
         });
       }
 

@@ -17,6 +17,22 @@ import { ACTIVE, forCreate, forUpdate } from "../src/lib/records.js";
 const EMAIL = "dev.customer@local.test";
 const PASSWORD = "customer123";
 
+// Guard: seed a known-password account only against a loopback database.
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL).hostname;
+  } catch {
+    return "";
+  }
+})();
+if (!["localhost", "127.0.0.1", "::1"].includes(dbHost) || process.env.NODE_ENV === "production") {
+  console.error(
+    `Refusing to run: DATABASE_URL host "${dbHost}" is not loopback (or NODE_ENV=production). ` +
+      `Dev seed scripts only run against a local database.`,
+  );
+  process.exit(1);
+}
+
 const role = await prisma.master_roles.findFirst({
   where: { title: "Customer", ...ACTIVE },
   select: { id: true },

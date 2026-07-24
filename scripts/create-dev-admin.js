@@ -12,6 +12,24 @@ import { ACTIVE, forCreate, forUpdate } from "../src/lib/records.js";
 const EMAIL = "dev.admin@local.test";
 const PASSWORD = "admin123";
 
+// Guard: never plant a known-password Admin anywhere but a local database. This
+// script uses whatever DATABASE_URL is set — refuse if that is not loopback (a
+// documented operator footgun runs seed scripts in a shell pointed at RDS).
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL).hostname;
+  } catch {
+    return "";
+  }
+})();
+if (!["localhost", "127.0.0.1", "::1"].includes(dbHost) || process.env.NODE_ENV === "production") {
+  console.error(
+    `Refusing to run: DATABASE_URL host "${dbHost}" is not loopback (or NODE_ENV=production). ` +
+      `Dev seed scripts only run against a local database.`,
+  );
+  process.exit(1);
+}
+
 const adminRole = await prisma.master_roles.findFirst({
   where: { title: "Admin", ...ACTIVE },
   select: { id: true },
